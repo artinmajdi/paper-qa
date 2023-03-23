@@ -69,9 +69,12 @@ def test_query_gen():
         f.write(r.text)
     docs = paperqa.Docs(llm=OpenAI(temperature=0.1, model_name="text-ada-001"))
     docs.add(doc_path, "WikiMedia Foundation, 2023, Accessed now")
-    i = 0
-    for answer in docs.query_gen("What is Frederick Bates's greatest accomplishment?"):
-        i += 1
+    i = sum(
+        1
+        for _ in docs.query_gen(
+            "What is Frederick Bates's greatest accomplishment?"
+        )
+    )
     assert i > 2
     os.remove(doc_path)
 

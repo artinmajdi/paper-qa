@@ -8,21 +8,33 @@ TextSplitter = RecursiveCharacterTextSplitter
 def parse_pdf(path, citation, key, chunk_chars=2000, overlap=50):
     import pypdf
 
-    pdfFileObj = open(path, "rb")
-    pdfReader = pypdf.PdfReader(pdfFileObj)
-    splits = []
-    split = ""
-    pages = []
-    metadatas = []
-    for i, page in enumerate(pdfReader.pages):
-        split += page.extract_text()
-        pages.append(str(i + 1))
-        # split could be so long it needs to be split
-        # into multiple chunks. Or it could be so short
-        # that it needs to be combined with the next chunk.
-        while len(split) > chunk_chars:
+    with open(path, "rb") as pdfFileObj:
+        pdfReader = pypdf.PdfReader(pdfFileObj)
+        splits = []
+        split = ""
+        pages = []
+        metadatas = []
+        for i, page in enumerate(pdfReader.pages):
+            split += page.extract_text()
+            pages.append(str(i + 1))
+            # split could be so long it needs to be split
+            # into multiple chunks. Or it could be so short
+            # that it needs to be combined with the next chunk.
+            while len(split) > chunk_chars:
+                splits.append(split[:chunk_chars])
+                # pretty formatting of pages (e.g. 1-3, 4, 5-7)
+                pg = "-".join([pages[0], pages[-1]])
+                metadatas.append(
+                    dict(
+                        citation=citation,
+                        dockey=key,
+                        key=f"{key} pages {pg}",
+                    )
+                )
+                split = split[chunk_chars - overlap :]
+                pages = [str(i + 1)]
+        if len(split) > overlap:
             splits.append(split[:chunk_chars])
-            # pretty formatting of pages (e.g. 1-3, 4, 5-7)
             pg = "-".join([pages[0], pages[-1]])
             metadatas.append(
                 dict(
@@ -31,19 +43,6 @@ def parse_pdf(path, citation, key, chunk_chars=2000, overlap=50):
                     key=f"{key} pages {pg}",
                 )
             )
-            split = split[chunk_chars - overlap :]
-            pages = [str(i + 1)]
-    if len(split) > overlap:
-        splits.append(split[:chunk_chars])
-        pg = "-".join([pages[0], pages[-1]])
-        metadatas.append(
-            dict(
-                citation=citation,
-                dockey=key,
-                key=f"{key} pages {pg}",
-            )
-        )
-    pdfFileObj.close()
     return splits, metadatas
 
 

@@ -65,7 +65,7 @@ class Docs:
             name: The name of the collection.
             index_path: The path to the index file IF pickled. If None, defaults to using name in $HOME/.paperqa/name
         """
-        self.docs = dict()
+        self.docs = {}
         self.chunk_size_limit = chunk_size_limit
         self.keys = set()
         self._faiss_index = None
@@ -103,24 +103,21 @@ class Docs:
         if key is None:
             # get first name and year from citation
             try:
-                author = re.search(r"([A-Z][a-z]+)", citation).group(1)
+                author = re.search(r"([A-Z][a-z]+)", citation)[1]
             except AttributeError:
                 # panicking - no word??
                 raise ValueError(
                     f"Could not parse key from citation {citation}. Consider just passing key explicitly - e.g. docs.py (path, citation, key='mykey')"
                 )
             try:
-                year = re.search(r"(\d{4})", citation).group(1)
+                year = re.search(r"(\d{4})", citation)[1]
             except AttributeError:
                 year = ""
             key = f"{author}{year}"
         suffix = ""
         while key + suffix in self.keys:
             # move suffix to next letter
-            if suffix == "":
-                suffix = "a"
-            else:
-                suffix = chr(ord(suffix) + 1)
+            suffix = chr(ord(suffix) + 1) if suffix else "a"
         key += suffix
         self.keys.add(key)
 
@@ -140,7 +137,7 @@ class Docs:
 
     def clear(self) -> None:
         """Clear the collection of documents."""
-        self.docs = dict()
+        self.docs = {}
         self.keys = set()
         self._faiss_index = None
         # delete index file
@@ -235,8 +232,9 @@ class Docs:
         context_str = "\n\n".join(
             [f"{k}: {s}" for k, c, s, t in answer.contexts if "Not applicable" not in s]
         )
-        valid_keys = [k for k, c, s, t in answer.contexts if "Not applicable" not in s]
-        if len(valid_keys) > 0:
+        if valid_keys := [
+            k for k, c, s, t in answer.contexts if "Not applicable" not in s
+        ]:
             context_str += "\n\nValid keys: " + ", ".join(valid_keys)
         answer.context = context_str
         yield answer
@@ -302,17 +300,16 @@ class Docs:
         tokens = 0
         answer = Answer(query)
         with get_openai_callback() as cb:
-            for answer in self.get_evidence(
+            yield from self.get_evidence(
                 answer,
                 k=k,
                 max_sources=max_sources,
                 marginal_relevance=marginal_relevance,
-            ):
-                yield answer
+            )
             tokens += cb.total_tokens
         context_str, citations = answer.context, answer.contexts
-        bib = dict()
-        passages = dict()
+        bib = {}
+        passages = {}
         if len(context_str) < 10:
             answer_text = (
                 "I cannot answer this question due to insufficient information."
@@ -333,14 +330,14 @@ class Docs:
         for key, citation, summary, text in citations:
             # do check for whole key (so we don't catch Callahan2019a with Callahan2019)
             skey = key.split(" ")[0]
-            if skey + " " in answer_text or skey + ")" in answer_text:
+            if f"{skey} " in answer_text or f"{skey})" in answer_text:
                 bib[skey] = citation
                 passages[key] = text
         bib_str = "\n\n".join(
             [f"{i+1}. ({k}): {c}" for i, (k, c) in enumerate(bib.items())]
         )
         formatted_answer = f"Question: {query}\n\n{answer_text}\n"
-        if len(bib) > 0:
+        if bib:
             formatted_answer += f"\nReferences\n\n{bib_str}\n"
         formatted_answer += f"\nTokens Used: {tokens} Cost: ${tokens/1000 * 0.02:.2f}"
         answer.answer = answer_text
